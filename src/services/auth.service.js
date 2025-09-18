@@ -5,32 +5,42 @@ const bcrypt = require('bcryptjs');
 const { accessToken, refreshToken } = require('../utils/generateToken')
 
 exports.registerUser = async ({ username, email, password }) => {
-  const existing = await userRepo.findByEmail(email);
-  if (existing) throw { status: 400, message: 'Email already registered' };
+    const existing = await userRepo.findByEmail(email);
+    if (existing) throw { status: 400, message: 'Email already registered' };
 
-  const user = await userRepo.createUser({ username, email, password });
-  const tokenAccess = accessToken(user);
-  const tokenRefresh = refreshToken(user);
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-  logger.info(`User registered: ${user.email}`);
-  return { accessToken: tokenAccess, refreshToken: tokenRefresh,  user: { id: user._id, username: user.username, email: user.email } };
+    // Create user with hashed password
+    const user = await userRepo.createUser({
+        username,
+        email,
+        password: hashedPassword,
+    });
+
+    const tokenAccess = accessToken(user);
+    const tokenRefresh = refreshToken(user);
+
+    logger.info(`User registered: ${user.email}`);
+    return { accessToken: tokenAccess, refreshToken: tokenRefresh, user: { id: user._id, username: user.username, email: user.email } };
 };
 
 exports.loginUser = async ({ email, password }) => {
-  const user = await userRepo.findByEmail(email);
-  if (!user) throw { status: 400, message: 'Invalid credentials' };
+    const user = await userRepo.findByEmail(email);
+    logger.info(`User : ${user}`);
+    if (!user) throw { status: 400, message: 'Invalid credentials' };
 
-  const matched = await bcrypt.compare(password, user.password);
-  if (!matched) throw { status: 400, message: 'Invalid credentials' };
+    const matched = await bcrypt.compare(password, user.password);
+    if (!matched) throw { status: 400, message: 'Invalid credentials' };
 
-  const tokenAccess = accessToken(user);
-  const tokenRefresh = refreshToken(user);
+    const tokenAccess = accessToken(user);
+    const tokenRefresh = refreshToken(user);
 
-  logger.info(`User login: ${user.email}`);
-  return { accessToken: tokenAccess, refreshToken: tokenRefresh, user: { id: user._id, username: user.username, email: user.email } };
+    logger.info(`User login: ${user.email}`);
+    return { accessToken: tokenAccess, refreshToken: tokenRefresh, user: { id: user._id, username: user.username, email: user.email } };
 };
 
 exports.logout = (req, res) => {
-  res.clearCookie('refreshToken');
-  res.json({ message: 'Logged out successfully' });
+    res.clearCookie('refreshToken');
+    res.json({ message: 'Logged out successfully' });
 };
